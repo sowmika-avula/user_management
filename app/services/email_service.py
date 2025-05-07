@@ -19,7 +19,9 @@ class EmailService:
         subject_map = {
             'email_verification': "Verify Your Account",
             'password_reset': "Password Reset Instructions",
-            'account_locked': "Account Locked Notification"
+            'account_locked': "Account Locked Notification",
+            'professional_status_approved': "Professional Status Approved",
+            'professional_status_rejected': "Professional Status Update"  
         }
 
         if email_type not in subject_map:
@@ -31,7 +33,33 @@ class EmailService:
     async def send_verification_email(self, user: User):
         verification_url = f"{settings.server_base_url}verify-email/{user.id}/{user.verification_token}"
         await self.send_user_email({
-            "name": user.first_name,
+            "name": user.first_name or user.nickname,
             "verification_url": verification_url,
             "email": user.email
         }, 'email_verification')
+        
+    async def send_professional_status_approved_email(self, user: User):
+        """Send an email notification when professional status is approved.
+        
+        Args:
+            user: User whose professional status was approved
+        """
+        profile_url = f"{settings.server_base_url}users/{user.id}/profile"
+        await self.send_user_email({
+            "name": user.first_name or user.nickname,
+            "profile_url": profile_url,
+            "email": user.email
+        }, 'professional_status_approved')
+    
+    async def send_professional_status_rejected_email(self, user: User):
+        """Send an email notification when professional status is rejected.
+        
+        Args:
+            user: User whose professional status was rejected
+        """
+        profile_url = f"{settings.server_base_url}users/{user.id}/profile"
+        await self.send_user_email({
+            "name": user.first_name or user.nickname,
+            "profile_url": profile_url,
+            "email": user.email
+        }, 'professional_status_rejected')

@@ -149,6 +149,107 @@ class UserService:
     async def is_account_locked(cls, session: AsyncSession, email: str) -> bool:
         user = await cls.get_by_email(session, email)
         return user.is_locked if user else False
+        
+    @classmethod
+    async def request_professional_status(cls, session: AsyncSession, user_id: UUID) -> Optional[User]:
+        """Request professional status upgrade for a user.
+        
+        This method marks a user as requesting professional status. The user must have
+        a complete profile (first name, last name, bio, and at least one profile URL)
+        to be eligible for professional status.
+        
+        Args:
+            session: Database session
+            user_id: ID of the user requesting professional status
+            
+        Returns:
+            Updated user object if successful, None otherwise
+        """
+        user = await cls.get_by_id(session, user_id)
+        if not user:
+            logger.error(f"User with ID {user_id} not found.")
+            return None
+            
+        # Check if profile is complete
+        if not cls._is_profile_complete(user):
+            logger.error(f"User {user_id} has incomplete profile for professional status.")
+            return None
+            
+        # Set professional status to False but mark as requested in the update data
+        update_data = {"professional_status_requested": True}
+        return await cls.update(session, user_id, update_data)
+    
+    @classmethod
+    def _is_profile_complete(cls, user: User) -> bool:
+        """Check if a user's profile is complete enough for professional status.
+        
+        A complete profile must have:
+        - First name
+        - Last name
+        - Bio
+        - At least one profile URL (LinkedIn, GitHub, or profile picture)
+        
+        Args:
+            user: User object to check
+            
+        Returns:
+            True if profile is complete, False otherwise
+        """
+        # Check required fields
+        if not user.first_name or not user.last_name or not user.bio:
+            return False
+            
+        # Check if at least one profile URL is present
+        has_profile_url = any([
+            user.linkedin_profile_url,
+            user.github_profile_url,
+            user.profile_picture_url
+        ])
+        
+        return has_profile_url
+    
+    @classmethod
+    async def approve_professional_status(cls, session: AsyncSession, user_id: UUID, 
+                                         approved: bool, email_service: EmailService) -> Optional[User]:
+        """Approve or reject a professional status request.
+        
+        This method can only be called by admin or manager users to approve or reject
+        a professional status request.
+        
+        Args:
+            session: Database session
+            user_id: ID of the user whose professional status is being updated
+            approved: True to approve, False to reject
+            email_service: Email service for sending notifications
+            
+        Returns:
+            Updated user object if successful, None otherwise
+        """
+        user = await cls.get_by_id(session, user_id)
+        if not user:
+            logger.error(f"User with ID {user_id} not found.")
+            return None
+            
+        # Update professional status
+        user.update_professional_status(approved)
+        
+        # Clear the request flag
+        user.professional_status_requested = False
+        
+        # Save changes
+        session.add(user)
+        await session.commit()
+        
+        # Send notification email
+        try:
+            if approved:
+                await email_service.send_professional_status_approved_email(user)
+            else:
+                await email_service.send_professional_status_rejected_email(user)
+        except Exception as e:
+            logger.error(f"Failed to send professional status notification email: {e}")
+        
+        return user
 
 
     @classmethod

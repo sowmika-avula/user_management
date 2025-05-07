@@ -64,6 +64,7 @@ class User(Base):
     github_profile_url: Mapped[str] = Column(String(255), nullable=True)
     role: Mapped[UserRole] = Column(SQLAlchemyEnum(UserRole, name='UserRole', create_constraint=True), nullable=False)
     is_professional: Mapped[bool] = Column(Boolean, default=False)
+    professional_status_requested: Mapped[bool] = Column(Boolean, default=False)
     professional_status_updated_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=True)
     last_login_at: Mapped[datetime] = Column(DateTime(timezone=True), nullable=True)
     failed_login_attempts: Mapped[int] = Column(Integer, default=0)

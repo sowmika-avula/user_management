@@ -10,12 +10,28 @@ from app.utils.nickname_gen import generate_nickname
 
 
 def validate_url(url: Optional[str]) -> Optional[str]:
+    """Validate URL format for profile URLs."""
     if url is None:
         return url
     url_regex = r'^https?:\/\/[^\s/$.?#].[^\s]*$'
     if not re.match(url_regex, url):
         raise ValueError('Invalid URL format')
     return url
+
+
+def validate_password_strength(password: str) -> str:
+    """Validate password strength requirements."""
+    if len(password) < 8:
+        raise ValueError('Password must be at least 8 characters long')
+    if not re.search(r'[A-Z]', password):
+        raise ValueError('Password must contain at least one uppercase letter')
+    if not re.search(r'[a-z]', password):
+        raise ValueError('Password must contain at least one lowercase letter')
+    if not re.search(r'[0-9]', password):
+        raise ValueError('Password must contain at least one number')
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        raise ValueError('Password must contain at least one special character')
+    return password
 
 class UserBase(BaseModel):
     email: EmailStr = Field(..., example="john.doe@example.com")
@@ -27,15 +43,25 @@ class UserBase(BaseModel):
     linkedin_profile_url: Optional[str] =Field(None, example="https://linkedin.com/in/johndoe")
     github_profile_url: Optional[str] = Field(None, example="https://github.com/johndoe")
     role: UserRole
+    is_professional: Optional[bool] = Field(False, description="Indicates if the user has professional status")
 
     _validate_urls = validator('profile_picture_url', 'linkedin_profile_url', 'github_profile_url', pre=True, allow_reuse=True)(validate_url)
  
     class Config:
         from_attributes = True
+        
+    @validator('bio')
+    def validate_bio_length(cls, v):
+        """Validate that bio is not too long."""
+        if v and len(v) > 500:
+            raise ValueError('Bio must be 500 characters or less')
+        return v
 
 class UserCreate(UserBase):
     email: EmailStr = Field(..., example="john.doe@example.com")
     password: str = Field(..., example="Secure*1234")
+    
+    _validate_password = validator('password', pre=True, allow_reuse=True)(validate_password_strength)
 
 class UserUpdate(UserBase):
     email: Optional[EmailStr] = Field(None, example="john.doe@example.com")
@@ -47,6 +73,7 @@ class UserUpdate(UserBase):
     linkedin_profile_url: Optional[str] =Field(None, example="https://linkedin.com/in/johndoe")
     github_profile_url: Optional[str] = Field(None, example="https://github.com/johndoe")
     role: Optional[str] = Field(None, example="AUTHENTICATED")
+    is_professional: Optional[bool] = Field(None, description="Indicates if the user has professional status")
 
     @root_validator(pre=True)
     def check_at_least_one_value(cls, values):
